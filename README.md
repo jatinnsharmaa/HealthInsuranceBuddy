@@ -24,7 +24,7 @@ Two-agent system with deterministic retrieval:
 User Question
     │
     ▼
-Orchestrator Agent (Claude Sonnet)
+Orchestrator Agent (Claude Haiku)
     ├── Tool 1: retrieve_from_policy(query)   ← deterministic, no LLM
     │           Cohere embed → Pinecone → BM25 → RRF → Cohere Rerank
     │
@@ -34,7 +34,7 @@ Orchestrator Agent (Claude Sonnet)
                 Multi-hop crawler: explicit URL → crawl links → root domain
                 Returns raw content + full failure trace
 
-Web Navigator Agent (Claude Sonnet) — called only when needed
+Web Navigator Agent (Claude Haiku) — called only when needed
     └── Tool: web_navigate(start_url, goal)
 ```
 
@@ -49,12 +49,12 @@ Web Navigator Agent (Claude Sonnet) — called only when needed
 
 **Eval results (70 questions, Care Insurance Supreme):**
 
-| Mode | Faithfulness | Context Precision | Context Recall |
-|------|-------------|------------------|----------------|
-| dense | 0.630 | 0.781 | 0.610 |
-| hybrid_rerank | 0.609 | 0.735 | 0.520 |
-| dense_rerank | 0.638 | 0.697 | 0.553 |
-| hybrid | 0.599 | 0.689 | 0.539 |
+| Mode | Faithfulness | Context Precision | Context Recall | Answer Relevancy | Answer Correctness |
+|------|-------------|------------------|----------------|-----------------|-------------------|
+| dense | 0.622 | 0.768 | 0.610 | 0.472 | 0.531 |
+| hybrid_rerank | 0.607 | 0.735 | 0.528 | 0.498 | 0.531 |
+| dense_rerank | 0.631 | 0.676 | 0.544 | 0.445 | 0.528 |
+| hybrid | 0.585 | 0.647 | 0.552 | 0.471 | 0.507 |
 
 ---
 
@@ -68,7 +68,7 @@ Web Navigator Agent (Claude Sonnet) — called only when needed
 | Sparse retrieval | BM25 (rank-bm25, JSON-serialised) |
 | Reranking | Cohere Rerank v3.0 |
 | Agents | LlamaIndex AgentWorkflow |
-| LLM | Claude Sonnet 4.6 (answers) + Claude Haiku (eval judge) |
+| LLM | Claude Haiku 4.5 (answers + eval judge) |
 | Web crawling | httpx + custom multi-hop navigator |
 | Backend | FastAPI + uvicorn |
 | Frontend | Next.js 16 + react-pdf + Tailwind |

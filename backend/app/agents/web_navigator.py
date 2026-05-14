@@ -27,7 +27,7 @@ def build_web_navigator(anthropic_api_key: str) -> AgentWorkflow:
         return json.dumps(result)
 
     llm = Anthropic(
-        model="claude-sonnet-4-6",
+        model="claude-haiku-4-5-20251001",
         api_key=anthropic_api_key,
         max_tokens=1024,
         cache_idx=-1,  # cache system prompt for repeated navigation tasks

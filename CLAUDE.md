@@ -49,7 +49,7 @@ Two-agent system + deterministic retrieval layer:
 User question
     │
     ▼
-Orchestrator Agent (Claude Sonnet)           app/agents/orchestrator.py
+Orchestrator Agent (Claude Haiku)            app/agents/orchestrator.py
     │
     ├─ Tool 1: retrieve_from_policy()        ← deterministic Python, no LLM
     │          Cohere embed → Pinecone → BM25 → RRF → Cohere rerank
@@ -61,7 +61,7 @@ Orchestrator Agent (Claude Sonnet)           app/agents/orchestrator.py
                Hard cap: max 2 calls. Second call must include RETRY feedback.
                    │
                    ▼
-               Web Navigator Agent (Claude Sonnet)   app/agents/web_navigator.py
+               Web Navigator Agent (Claude Haiku)    app/agents/web_navigator.py
                Tool: web_navigate(start_url, goal)   app/agents/web_tools.py
                Crawls up to 3 hops. Returns raw content + failure trace.
                Never evaluates. Never answers. Raw output only.

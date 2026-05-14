@@ -31,7 +31,7 @@ class OrchestratorAgent:
         retrieval_mode: str = "hybrid_rerank",
         top_k: int = 5,
         candidate_k: int = 20,
-        model: str = "claude-sonnet-4-6",
+        model: str = "claude-haiku-4-5-20251001",
     ):
         self.retrieval_log: list[dict] = []
         self.web_fetch_status: str = "not_triggered"

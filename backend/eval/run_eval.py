@@ -127,7 +127,7 @@ async def run_single_with_retry(
                 retrieval_mode=mode,
                 top_k=5,
                 candidate_k=20,
-                # No model override — uses default Sonnet, same as production
+                # No model override — uses default Haiku
             )
 
             response = ""
@@ -331,7 +331,7 @@ async def main():
     settings = get_settings()
     golden = load_golden_dataset(args.dataset)
     print(f"Loaded {len(golden)} questions. Modes: {args.modes}")
-    print(f"Answer model: claude-sonnet-4-6 (production). Ragas judge: {settings.eval_model}")
+    print(f"Answer model: claude-haiku-4-5-20251001. Ragas judge: {settings.eval_model}")
 
     # Single Pinecone connection shared across all modes
     pinecone_index = get_pinecone_index(settings.pinecone_api_key, settings.pinecone_index_name)
