@@ -16,18 +16,13 @@ cd backend
 # Run dev server (auto-reload)
 uv run uvicorn app.main:app --reload --port 8000
 
-# Run ingestion pipeline (one-time, after adding a PDF to data/pdfs/)
-uv run python -c "
-from app.config import get_settings
-from app.ingestion.parser import parse_policy_pdf
-from app.ingestion.url_extractor import extract_deferred_urls
-from app.ingestion.chunker import chunk_pages
-from app.ingestion.indexer import build_and_store_indexes, get_pinecone_index
-# ... see ingestion section below
-"
-
-# Run eval across 4 retrieval modes
+# Run eval across 4 retrieval modes (checkpointed — safe to re-run)
 uv run python eval/run_eval.py --policy_id care-insurance-sample --output eval/results/
+
+# Eval flags
+#   --modes dense hybrid dense_rerank hybrid_rerank   (subset of modes)
+#   --dataset eval/golden_dataset.csv                 (id, question, ground_truth_answer, supporting_clause, expected_verdict, category, live_data_dependent)
+#   --fresh                                            (delete stale checkpoints before run)
 
 # Add a dependency
 uv add <package>
@@ -80,9 +75,22 @@ The Orchestrator independently evaluates web results (not self-graded) and gener
 | `app/prompts/web_navigator_prompt.py` | RISEN structured prompt for web navigation |
 | `app/retrieval/retriever.py` | 4 retrieval modes: dense / hybrid / dense_rerank / hybrid_rerank |
 | `app/ingestion/chunker.py` | MarkdownElementNodeParser → HierarchicalNodeParser, tags every chunk |
+| `app/feedback/store.py` | SQLite feedback DB — `queries` + `feedback` tables, cost tracking |
 | `app/timing.py` | Per-step timing logger — `timing.t("label")` emits `[+Xs | total Ys]` to stdout |
-| `app/api/chat.py` | SSE streaming endpoint — wraps `orchestrator.stream_chat()` |
-| `eval/run_eval.py` | Ragas eval runner across 4 retrieval modes |
+| `app/api/chat.py` | SSE streaming endpoint — auto-logs every query to feedback DB |
+| `app/api/feedback.py` | `POST /api/feedback` — thumbs up/down + optional text |
+| `eval/run_eval.py` | Ragas eval runner across 4 retrieval modes, checkpointed |
+
+## API Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/chat` | SSE stream — `agent_step`, `chunk`, `done`, `error` events |
+| `POST` | `/api/feedback` | User thumbs up/down feedback, linked to query by `query_id` |
+| `POST` | `/api/ingest` | Upload PDF, runs ingestion in background, returns `{job_id, policy_id}` |
+| `GET` | `/api/ingest/status/{job_id}` | Poll ingestion status: queued → parsing → chunking → indexing → ready |
+| `GET` | `/api/ingest/sample` | Metadata for the pre-indexed sample policy |
+| `GET` | `/pdfs/*` | Static mount of `data/pdfs/` for frontend PDF viewer |
 
 ## Agent Prompts: Critical Constraints
 
@@ -98,25 +106,49 @@ Four switchable modes in `retriever.py`. Default is `hybrid_rerank` (BM25 + Cohe
 
 Every chunk is tagged at ingestion with `policy_id`, `section`, `sub_clause`, `page_number`, `chunk_type`. Chunks with URL deferrals ("visit careinsurance.com/...") are flagged `URL_DEFERRAL: {url}` — the Orchestrator uses these to decide whether to call `search_web`.
 
+## Feedback & Query Logging
+
+Every chat request is automatically logged to `data/feedback.db` (SQLite). Two tables:
+- `queries` — full question, answer, retrieval latency, web fetch status, token counts, estimated cost (`input_tokens * $1 + output_tokens * $5` per million)
+- `feedback` — thumbs up/down signal linked to `query_id`, optional text
+
+DB is initialized at FastAPI lifespan startup via `init_db()` in `app/feedback/store.py`.
+
 ## Ingestion
 
-Run once per policy PDF. Output: Pinecone namespace `{policy_id}` + JSON BM25 index at `data/bm25_indexes/{policy_id}.json` + parent node store at `data/bm25_indexes/{policy_id}_all_nodes.json`.
+Run once per policy PDF via `POST /api/ingest` or manually. Output:
+- Pinecone namespace `{policy_id}`
+- BM25 index: `data/bm25_indexes/{policy_id}.json` (`corpus` + `nodes` arrays)
+- Parent node store: `data/bm25_indexes/{policy_id}_all_nodes.json`
 
 Sample policy pre-indexed at `care-insurance-sample` namespace. PDF must be at `data/pdfs/care-insurance-sample.pdf`.
 
 ## Environment
 
-Copy `backend/.env.example` → `backend/.env`. Required keys: `ANTHROPIC_API_KEY`, `LLAMA_CLOUD_API_KEY`, `COHERE_API_KEY`, `PINECONE_API_KEY`. Pinecone index name: `health-insurance-policies`, serverless, 1024 dims, cosine.
+Copy `backend/.env.example` → `backend/.env`.
+
+| Key | Default | Notes |
+|-----|---------|-------|
+| `ANTHROPIC_API_KEY` | — | Required |
+| `LLAMA_CLOUD_API_KEY` | — | Required for PDF parsing |
+| `COHERE_API_KEY` | — | Required |
+| `PINECONE_API_KEY` | — | Required |
+| `RETRIEVAL_MODE` | `hybrid_rerank` | dense / hybrid / dense_rerank / hybrid_rerank |
+| `RETRIEVAL_TOP_K` | `5` | Final results returned to LLM |
+| `RETRIEVAL_CANDIDATE_K` | `20` | Candidate pool before reranking |
+| `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated |
+
+Pinecone index: `health-insurance-policies`, serverless, us-east-1, 1024 dims, cosine.
 
 ## Frontend Note
 
 The frontend AGENTS.md warns: **this is Next.js 16.x with breaking changes**. Read `node_modules/next/dist/docs/` before modifying frontend routing or APIs. PDF viewer uses `react-pdf` with `pdfjs-dist` — worker is loaded from unpkg CDN in `PDFViewer.tsx`.
 
-## Latency Profile (as of last timing run)
+## Latency Profile
 
-On a policy question with no web trigger:
-- Orchestrator LLM (thinks + retrieve call + generates answer): ~38s total
-- retrieve_from_policy (Cohere embed + Pinecone + BM25 + rerank): ~3s
-- Web Navigator: not triggered for 61/70 eval questions
+On a policy question with no web trigger (avg across 70 eval questions):
+- Full question latency: ~18s avg (4s min, 60s max)
+- `retrieve_from_policy` (Cohere embed + Pinecone + BM25 + rerank): ~3s
+- Web Navigator: not triggered for ~61/70 eval questions
 
-Token streaming via `stream_events()` emits workflow lifecycle events but not LLM token deltas in LlamaIndex 0.14.x — the fallback in `stream_chat()` awaits the full response and streams it in one chunk.
+Token streaming: `stream_events()` emits workflow lifecycle events but not LLM token deltas in LlamaIndex 0.14.x — `stream_chat()` awaits the full response and streams it in one chunk.
