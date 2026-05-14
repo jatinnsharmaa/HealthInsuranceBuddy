@@ -16,13 +16,17 @@ cd backend
 # Run dev server (auto-reload)
 uv run uvicorn app.main:app --reload --port 8000
 
-# Run eval across 4 retrieval modes (checkpointed — safe to re-run)
+# Run eval across 4 RAG retrieval modes (checkpointed — safe to re-run)
 uv run python eval/run_eval.py --policy_id care-insurance-sample --output eval/results/
 
 # Eval flags
 #   --modes dense hybrid dense_rerank hybrid_rerank   (subset of modes)
 #   --dataset eval/golden_dataset.csv                 (id, question, ground_truth_answer, supporting_clause, expected_verdict, category, live_data_dependent)
 #   --fresh                                            (delete stale checkpoints before run)
+
+# Run LLM baseline eval (Claude Sonnet + full PDF, no RAG)
+uv run python eval/run_baseline_eval.py --policy_id care-insurance-sample --output eval/results/
+# NOTE: requires web search enabled at platform.anthropic.com → Settings → Privacy
 
 # Add a dependency
 uv add <package>
@@ -73,13 +77,15 @@ The Orchestrator independently evaluates web results (not self-graded) and gener
 | `app/agents/web_tools.py` | `web_navigate_impl()` — multi-hop crawler logic |
 | `app/prompts/orchestrator_prompt.py` | CO-STAR structured prompt, XML tags, state machine, few-shot example |
 | `app/prompts/web_navigator_prompt.py` | RISEN structured prompt for web navigation |
+| `app/prompts/baseline_prompt.py` | Prompt for LLM baseline eval (no RAG, no workflow) |
 | `app/retrieval/retriever.py` | 4 retrieval modes: dense / hybrid / dense_rerank / hybrid_rerank |
 | `app/ingestion/chunker.py` | MarkdownElementNodeParser → HierarchicalNodeParser, tags every chunk |
 | `app/feedback/store.py` | SQLite feedback DB — `queries` + `feedback` tables, cost tracking |
 | `app/timing.py` | Per-step timing logger — `timing.t("label")` emits `[+Xs | total Ys]` to stdout |
 | `app/api/chat.py` | SSE streaming endpoint — auto-logs every query to feedback DB |
 | `app/api/feedback.py` | `POST /api/feedback` — thumbs up/down + optional text |
-| `eval/run_eval.py` | Ragas eval runner across 4 retrieval modes, checkpointed |
+| `eval/run_eval.py` | Ragas eval runner across 4 RAG retrieval modes, checkpointed |
+| `eval/run_baseline_eval.py` | LLM baseline eval — Claude Sonnet + full PDF + native web search, no RAG |
 
 ## API Endpoints
 

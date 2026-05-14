@@ -132,7 +132,7 @@ All 85 tests must pass before running eval. Fails indicate misconfigured API key
 ```bash
 cd backend
 
-# Fresh run — all 4 retrieval modes in parallel
+# Fresh run — all 4 RAG retrieval modes in parallel
 uv run python eval/run_eval.py \
   --policy_id care-insurance-sample \
   --output eval/results/ \
@@ -145,6 +145,18 @@ uv run python eval/run_eval.py \
 ```
 
 Results saved to `eval/results/eval_summary_<timestamp>.json`.
+
+### LLM baseline eval
+
+Compares Claude Sonnet (full PDF, no RAG) against the 4 RAG modes. Requires web search enabled at platform.anthropic.com → Settings → Privacy.
+
+```bash
+uv run python eval/run_baseline_eval.py \
+  --policy_id care-insurance-sample \
+  --output eval/results/
+```
+
+Results saved to `eval/results/eval_summary_baseline_<timestamp>.json`. Scores `answer_relevancy` and `answer_correctness` only (no retrieval step, so context metrics don't apply).
 
 ---
 

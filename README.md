@@ -55,6 +55,9 @@ Web Navigator Agent (Claude Haiku) — called only when needed
 | hybrid_rerank | 0.607 | 0.735 | 0.528 | 0.498 | 0.531 |
 | dense_rerank | 0.631 | 0.676 | 0.544 | 0.445 | 0.528 |
 | hybrid | 0.585 | 0.647 | 0.552 | 0.471 | 0.507 |
+| llm_baseline¹ | — | — | — | 0.452 | 0.508 |
+
+¹ LLM baseline: Claude Sonnet with the full policy PDF attached, native web search — no RAG chunking or retrieval. Context metrics not applicable (no retrieval step).
 
 ---
 
