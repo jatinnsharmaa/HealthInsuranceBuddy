@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[oc]
+*.pyc
+.venv/
+build/
+dist/
+wheels/
+*.egg-info/
+
+# Environment — NEVER commit real keys
+backend/.env
+.env
+
+# Data — large files, not for version control
+backend/data/pdfs/
+backend/data/bm25_indexes/
+backend/data/feedback.db
+
+# Eval artifacts
+backend/eval/results/
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
