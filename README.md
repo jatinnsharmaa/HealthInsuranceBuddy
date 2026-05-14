@@ -45,7 +45,7 @@ Web Navigator Agent (Claude Haiku) — called only when needed
 | `dense` | Cohere embed + Pinecone query |
 | `hybrid` | BM25 + dense, fused via RRF |
 | `dense_rerank` | Dense top-20 → Cohere Rerank → top-5 |
-| `hybrid_rerank` | Hybrid top-20 → Cohere Rerank → top-5 (production default) |
+| `hybrid_rerank` | Hybrid top-20 → Cohere Rerank → top-5 |
 
 **Eval results (70 questions, Care Insurance Supreme):**
 

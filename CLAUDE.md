@@ -102,7 +102,7 @@ Both prompts use XML-structured CO-STAR/RISEN frameworks. Do not flatten them to
 
 ## Retrieval Layer
 
-Four switchable modes in `retriever.py`. Default is `hybrid_rerank` (BM25 + Cohere dense, top-20 candidates fused via RRF, then Cohere Rerank to top-5). Controlled via `RETRIEVAL_MODE` in `.env`.
+Four switchable modes in `retriever.py`, controlled via `RETRIEVAL_MODE` in `.env`. `hybrid_rerank` uses BM25 + Cohere dense, top-20 candidates fused via RRF, then Cohere Rerank to top-5.
 
 Every chunk is tagged at ingestion with `policy_id`, `section`, `sub_clause`, `page_number`, `chunk_type`. Chunks with URL deferrals ("visit careinsurance.com/...") are flagged `URL_DEFERRAL: {url}` — the Orchestrator uses these to decide whether to call `search_web`.
 
