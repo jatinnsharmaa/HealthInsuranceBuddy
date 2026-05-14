@@ -1,12 +1,14 @@
 """
 Shared web navigation utilities used by the Web Navigator Agent.
 """
+import time
 import httpx
 from datetime import datetime, timezone
 from urllib.parse import urljoin, urlparse
 from app import timing
 
 FETCH_TIMEOUT = 10.0
+_RETRY_DELAYS = [2, 4]  # waits between attempts: try → 2s → try → 4s → try → exit
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -53,18 +55,24 @@ def _extract_text_and_links(html: str, base_url: str) -> tuple[str, list[str]]:
 
 
 def _fetch_one(url: str) -> dict:
-    try:
-        with httpx.Client(timeout=FETCH_TIMEOUT, headers=HEADERS, follow_redirects=True) as c:
-            r = c.get(url)
-            r.raise_for_status()
-            text, links = _extract_text_and_links(r.text, url)
-            return {"status": "ok", "url": str(r.url), "fetched_at": _now_utc(), "content": text, "links": links}
-    except httpx.TimeoutException:
-        return {"status": "failed", "url": url, "reason": "timeout (>10s)", "fetched_at": _now_utc()}
-    except httpx.HTTPStatusError as e:
-        return {"status": "failed", "url": url, "reason": f"HTTP {e.response.status_code}", "fetched_at": _now_utc()}
-    except Exception as e:
-        return {"status": "failed", "url": url, "reason": str(e)[:120], "fetched_at": _now_utc()}
+    last_reason = "unknown"
+    for attempt, delay in enumerate([0] + _RETRY_DELAYS):
+        if delay:
+            time.sleep(delay)
+        try:
+            with httpx.Client(timeout=FETCH_TIMEOUT, headers=HEADERS, follow_redirects=True) as c:
+                r = c.get(url)
+                r.raise_for_status()
+                text, links = _extract_text_and_links(r.text, url)
+                return {"status": "ok", "url": str(r.url), "fetched_at": _now_utc(), "content": text, "links": links}
+        except httpx.TimeoutException:
+            last_reason = "timeout (>10s)"
+        except httpx.HTTPStatusError as e:
+            last_reason = f"HTTP {e.response.status_code}"
+            break  # HTTP errors won't resolve with retries
+        except Exception as e:
+            last_reason = str(e)[:120]
+    return {"status": "failed", "url": url, "reason": last_reason, "fetched_at": _now_utc()}
 
 
 def _is_relevant(content: str, goal: str) -> bool:

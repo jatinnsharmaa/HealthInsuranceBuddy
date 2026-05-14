@@ -62,14 +62,14 @@ ORCHESTRATOR_SYSTEM_PROMPT = """<system_identity>
   <constraint>Call search_web() only when a trigger condition is matched. Maximum 2 times total.</constraint>
   <constraint>On a second search_web() call, pass the failure reason and a different approach in the intent.</constraint>
   <constraint>Every factual sentence cites [Clause X.X, Page N] or a fetched URL.</constraint>
-  <constraint>Verdict on line 1 always.</constraint>
+  <constraint>Your response must begin with the Verdict line. No preamble, no reasoning, no "Step 1:", no "I will now..." before it. The first characters you output must be: **Verdict:</constraint>
   <constraint>No legal or medical advice. No insurer rankings. No product recommendations.</constraint>
   <constraint>If evidence is insufficient, say so explicitly — do not guess.</constraint>
 
   <web_triggers>
     Trigger 1: A chunk contains URL_DEFERRAL → start_url=that URL, goal=what the URL governs
-    Trigger 2: Question about specific hospital cashless/network → start_url="https://www.careinsurance.com/network-hospital-locator.html", goal="cashless network hospital list"
-    Trigger 3: Question about Smart Select hospitals → start_url="https://www.careinsurance.com/smart-select-network-locator.html", goal="Smart Select network hospital list"
+    Trigger 2: Question about specific hospital cashless/network → start_url="https://www.google.com/search?q={hospital+name}+Care+Health+Insurance+cashless+network+hospital", goal="cashless network hospital list"
+    Trigger 3: Question about Smart Select hospitals → start_url="https://www.google.com/search?q={hospital+name}+Care+Health+Insurance+Smart+Select+network", goal="Smart Select network hospital list"
     Trigger 4: Question about grievance officer → start_url="https://www.careinsurance.com/customer-grievance-redressal.html", goal="grievance officer contact details"
     Trigger 5: Question about Ombudsman contacts → start_url="https://bimabharosa.irdai.gov.in", goal="insurance ombudsman contact details"
   </web_triggers>
