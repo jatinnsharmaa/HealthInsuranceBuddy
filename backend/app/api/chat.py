@@ -1,12 +1,13 @@
 """Chat API: real SSE token streaming from the Orchestrator agent."""
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.config import get_settings
 from app.feedback.store import log_query
@@ -14,6 +15,14 @@ from app.feedback.store import log_query
 router = APIRouter()
 
 _pinecone_index: Any = None
+
+_POLICY_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
+
+
+def validate_policy_id(policy_id: str) -> str:
+    if not _POLICY_ID_RE.fullmatch(policy_id):
+        raise HTTPException(400, "Invalid policy_id: use only letters, digits, hyphens, and underscores (max 128 chars).")
+    return policy_id
 
 
 def set_pinecone_index(idx: Any):
@@ -27,6 +36,13 @@ class ChatRequest(BaseModel):
     message: str
     conversation_history: list[dict] = []
     retrieval_mode: str = "hybrid_rerank"
+
+    @field_validator("policy_id")
+    @classmethod
+    def policy_id_safe(cls, v: str) -> str:
+        if not _POLICY_ID_RE.fullmatch(v):
+            raise ValueError("Invalid policy_id: use only letters, digits, hyphens, and underscores (max 128 chars).")
+        return v
 
 
 def _sse(data: dict) -> str:

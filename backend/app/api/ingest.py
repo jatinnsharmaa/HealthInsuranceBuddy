@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 
+from app.api.chat import validate_policy_id
 from app.config import get_settings
 from app.ingestion.parser import parse_policy_pdf
 from app.ingestion.chunker import chunk_pages
@@ -68,7 +69,7 @@ async def ingest_policy(
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "Only PDF files are supported.")
 
-    policy_id = policy_id or str(uuid.uuid4())
+    policy_id = validate_policy_id(policy_id) if policy_id else str(uuid.uuid4())
     pdf_dir = Path(settings.data_dir) / "pdfs"
     pdf_dir.mkdir(parents=True, exist_ok=True)
     pdf_path = str(pdf_dir / f"{policy_id}.pdf")
