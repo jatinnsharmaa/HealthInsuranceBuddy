@@ -79,8 +79,14 @@ export default function ChatPane({
           <MessageBubble
             key={i}
             message={msg}
+            previousUserMessage={
+              msg.role === "agent" && i > 0 && messages[i - 1].role === "user"
+                ? messages[i - 1].content
+                : undefined
+            }
             onCitationClick={onCitationClick}
             onFeedback={(signal, text) => onFeedback(i, signal, text)}
+            onSend={onSend}
             isLast={i === lastAgentIdx && msg.role === "agent"}
           />
         ))}
