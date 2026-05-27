@@ -35,19 +35,28 @@ function VerdictBadge({ text }: { text: string }) {
 /** Split LLM output into {reasoning, answer}.
  *  Everything before the first "Verdict:" line is reasoning.
  *  If no "Verdict:" is found, the whole content is the answer.
+ *  Used by ThinkingBlock and FollowUpSuggestions components (Tasks 3–5).
  */
 function splitContent(content: string): { reasoning: string; answer: string } {
-  const match = content.match(/\n(\*\*Verdict:|Verdict:)/i);
+  // Match "Verdict:" at start-of-string OR after a newline.
+  // If no Verdict found, treat entire content as the answer (no reasoning to separate).
+  const match = content.match(/(^|\n)(\*\*Verdict:|Verdict:)/im);
   if (!match || match.index === undefined) {
     return { reasoning: "", answer: content };
   }
+  // If matched at position 0 (Verdict at very start), there's no reasoning block
+  if (match.index === 0) {
+    return { reasoning: "", answer: content.trim() };
+  }
   return {
     reasoning: content.slice(0, match.index).trim(),
-    answer: content.slice(match.index + 1).trim(), // +1 to skip the leading \n
+    answer: content.slice(match.index + 1).trim(),
   };
 }
 
-/** Return a human-readable label for the most recent Step N: STEPNAME found in content. */
+/** Return a human-readable label for the most recent Step N: STEPNAME found in content.
+ *  Used by ThinkingBlock component (Tasks 3–5).
+ */
 function detectCurrentStep(content: string): string {
   const stepMap: Record<string, string> = {
     THINK: "Thinking…",
