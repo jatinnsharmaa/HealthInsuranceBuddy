@@ -32,9 +32,41 @@ function VerdictBadge({ text }: { text: string }) {
   );
 }
 
+/** Split LLM output into {reasoning, answer}.
+ *  Everything before the first "Verdict:" line is reasoning.
+ *  If no "Verdict:" is found, the whole content is the answer.
+ */
+function splitContent(content: string): { reasoning: string; answer: string } {
+  const match = content.match(/\n(\*\*Verdict:|Verdict:)/i);
+  if (!match || match.index === undefined) {
+    return { reasoning: "", answer: content };
+  }
+  return {
+    reasoning: content.slice(0, match.index).trim(),
+    answer: content.slice(match.index + 1).trim(), // +1 to skip the leading \n
+  };
+}
+
+/** Return a human-readable label for the most recent Step N: STEPNAME found in content. */
+function detectCurrentStep(content: string): string {
+  const stepMap: Record<string, string> = {
+    THINK: "Thinking…",
+    RETRIEVE: "Retrieving clauses…",
+    EVALUATE_POLICY: "Evaluating policy…",
+    GENERATE: "Generating answer…",
+  };
+  // Find all "Step N: STEPNAME" occurrences, take the last one
+  const matches = [...content.matchAll(/Step\s+\d+:\s+([A-Z_]+)/gi)];
+  if (matches.length === 0) return "Working…";
+  const lastStep = matches[matches.length - 1][1].toUpperCase();
+  return stepMap[lastStep] ?? "Working…";
+}
+
 function renderContent(content: string, onCitationClick: (page: number) => void) {
   // Remove the verdict line since we show it as a badge
-  const withoutVerdict = content.replace(/^\*\*Verdict:[^*]*\*\*\n?/i, "").replace(/^Verdict:[^\n]*\n?/i, "");
+  const withoutVerdict = content
+    .replace(/^\*\*Verdict:[^*]*\*\*\n?/im, "")
+    .replace(/^Verdict:[^\n]*\n?/im, "");
 
   // Split on citation refs like [Clause 3.2, Page 11]
   const parts = withoutVerdict.split(/(\[(?:Clause|Section|Annexure)[^\]]+Page\s+\d+\])/gi);
@@ -54,11 +86,21 @@ function renderContent(content: string, onCitationClick: (page: number) => void)
         </button>
       );
     }
-    // Format **bold** text
-    const boldFormatted = part.split(/\*\*([^*]+)\*\*/g).map((s, j) =>
-      j % 2 === 1 ? <strong key={j}>{s}</strong> : s
+    // Format **bold** text, then convert \n to <br />
+    return (
+      <span key={i}>
+        {part.split(/\*\*([^*]+)\*\*/g).map((s, j) => {
+          if (j % 2 === 1) return <strong key={j}>{s}</strong>;
+          // Preserve newlines as <br />
+          return s.split("\n").map((line, k, arr) => (
+            <span key={k}>
+              {line}
+              {k < arr.length - 1 && <br />}
+            </span>
+          ));
+        })}
+      </span>
     );
-    return <span key={i}>{boldFormatted}</span>;
   });
 }
 
