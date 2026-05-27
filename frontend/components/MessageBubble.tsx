@@ -6,8 +6,10 @@ import FeedbackButtons from "./FeedbackButtons";
 
 interface MessageBubbleProps {
   message: ChatMessage;
+  previousUserMessage?: string;
   onCitationClick: (page: number) => void;
   onFeedback: (signal: "up" | "down", text?: string) => void;
+  onSend: (text: string) => void;
   isLast: boolean;
 }
 
@@ -244,7 +246,14 @@ function FollowUpSuggestions({ question, answer, onSend }: FollowUpSuggestionsPr
   );
 }
 
-export default function MessageBubble({ message, onCitationClick, onFeedback, isLast }: MessageBubbleProps) {
+export default function MessageBubble({
+  message,
+  previousUserMessage,
+  onCitationClick,
+  onFeedback,
+  onSend,
+  isLast,
+}: MessageBubbleProps) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end mb-4">
@@ -257,19 +266,28 @@ export default function MessageBubble({ message, onCitationClick, onFeedback, is
 
   const isLiveData = message.webFetchStatus === "succeeded";
   const webFailed = message.webFetchStatus === "failed";
+  const { reasoning, answer } = splitContent(message.content);
 
   return (
     <div className="flex justify-start mb-4">
       <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[85%] shadow-sm">
-        {/* Verdict badge */}
-        <VerdictBadge text={message.content} />
+
+        {/* Thinking indicator (streaming) or disclosure (done) */}
+        {message.isStreaming ? (
+          <ThinkingIndicator content={message.content} />
+        ) : (
+          <ThinkingDisclosure reasoning={reasoning} />
+        )}
+
+        {/* Verdict badge — derived from the answer section */}
+        <VerdictBadge text={answer} />
 
         {/* Answer */}
-        <div className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap">
+        <div className="text-sm text-slate-800 leading-relaxed">
           {message.isStreaming ? (
-            <span>{message.content}<span className="animate-pulse">▌</span></span>
+            <span>{answer || message.content}<span className="animate-pulse">▌</span></span>
           ) : (
-            renderContent(message.content, onCitationClick)
+            renderContent(answer, onCitationClick)
           )}
         </div>
 
@@ -297,6 +315,15 @@ export default function MessageBubble({ message, onCitationClick, onFeedback, is
         {/* Feedback */}
         {!message.isStreaming && isLast && (
           <FeedbackButtons onFeedback={onFeedback} />
+        )}
+
+        {/* Follow-up suggestions */}
+        {!message.isStreaming && isLast && (
+          <FollowUpSuggestions
+            question={previousUserMessage ?? ""}
+            answer={answer}
+            onSend={onSend}
+          />
         )}
       </div>
     </div>
