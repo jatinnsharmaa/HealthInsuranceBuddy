@@ -161,6 +161,89 @@ function ThinkingDisclosure({ reasoning }: { reasoning: string }) {
   );
 }
 
+const FOLLOW_UP_MAP: Record<string, string[]> = {
+  waiting_period: [
+    "Does portability reduce my waiting period?",
+    "What counts as a pre-existing disease?",
+  ],
+  maternity: [
+    "Is there a waiting period for maternity cover?",
+    "Are newborn expenses covered from day one?",
+  ],
+  exclusion: [
+    "Are there permanent exclusions that can never be covered?",
+    "What's the room rent sub-limit?",
+  ],
+  hospital_network: [
+    "How do I find a network hospital near me?",
+    "What happens if I go to a non-network hospital?",
+  ],
+  claim: [
+    "What documents are needed for a reimbursement claim?",
+    "What's the deadline for filing a claim?",
+  ],
+  room_rent: [
+    "How does the room rent sub-limit affect my claim?",
+    "Is ICU treatment covered without a sub-limit?",
+  ],
+  premium: [
+    "Will my premium increase after a claim?",
+    "How does portability work?",
+  ],
+  fallback: [
+    "What are the main exclusions in this policy?",
+    "Is there a room rent sub-limit?",
+    "Can I add a family member mid-term?",
+  ],
+};
+
+const TOPIC_KEYWORDS: Array<{ topic: string; keywords: string[] }> = [
+  { topic: "waiting_period", keywords: ["waiting period", "ped", "pre-existing", "36 month", "pre existing"] },
+  { topic: "maternity", keywords: ["maternity", "pregnancy", "newborn", "delivery"] },
+  { topic: "exclusion", keywords: ["exclusion", "not covered", "excluded", "permanent"] },
+  { topic: "hospital_network", keywords: ["cashless", "network hospital", "tpa", "network provider"] },
+  { topic: "claim", keywords: ["claim", "reimbursement", "discharge", "document"] },
+  { topic: "room_rent", keywords: ["room rent", "sub-limit", "icu", "ward"] },
+  { topic: "premium", keywords: ["premium", "renewal", "portability", "no-claim bonus"] },
+];
+
+/** Detect topic from the user question + agent answer for follow-up suggestion mapping. */
+function detectTopic(question: string, answer: string): string {
+  const combined = (question + " " + answer).toLowerCase();
+  for (const { topic, keywords } of TOPIC_KEYWORDS) {
+    if (keywords.some((kw) => combined.includes(kw))) return topic;
+  }
+  return "fallback";
+}
+
+interface FollowUpSuggestionsProps {
+  question: string;
+  answer: string;
+  onSend: (text: string) => void;
+}
+
+/** Shown below the last agent message — contextual follow-up question pills.
+ * Used by MessageBubble (Task 5).
+ */
+function FollowUpSuggestions({ question, answer, onSend }: FollowUpSuggestionsProps) {
+  const topic = detectTopic(question, answer);
+  const suggestions = FOLLOW_UP_MAP[topic] ?? FOLLOW_UP_MAP.fallback;
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {suggestions.map((q) => (
+        <button
+          key={q}
+          onClick={() => onSend(q)}
+          className="text-xs border border-slate-200 rounded-full px-3 py-1 text-slate-600 hover:border-blue-300 hover:text-blue-700 hover:bg-blue-50 transition-colors"
+        >
+          → {q}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function MessageBubble({ message, onCitationClick, onFeedback, isLast }: MessageBubbleProps) {
   if (message.role === "user") {
     return (
