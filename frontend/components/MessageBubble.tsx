@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { ChatMessage, Citation } from "@/lib/api";
 import FeedbackButtons from "./FeedbackButtons";
 
@@ -111,6 +112,53 @@ function renderContent(content: string, onCitationClick: (page: number) => void)
       </span>
     );
   });
+}
+
+/** Shown while the agent is streaming — pulses the current step name.
+ * Uses detectCurrentStep() defined above.
+ */
+function ThinkingIndicator({ content }: { content: string }) {
+  const label = detectCurrentStep(content);
+  return (
+    <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-2">
+      <span className="animate-spin inline-block">⚙</span>
+      <span>{label}</span>
+      <span className="animate-pulse">▌</span>
+    </div>
+  );
+}
+
+/** Shown after streaming completes — collapsible reasoning trace.
+ * Uses useState to toggle open/closed. Used by MessageBubble (Task 5).
+ */
+function ThinkingDisclosure({ reasoning }: { reasoning: string }) {
+  const [open, setOpen] = useState(false);
+
+  if (!reasoning) return null;
+
+  // Bold step labels like "Step 1: THINK"
+  const formatted = reasoning.split(/^(Step\s+\d+:\s+\S+)/gm).map((part, i) =>
+    /^Step\s+\d+:/i.test(part)
+      ? <strong key={i} className="text-slate-500">{part}</strong>
+      : <span key={i}>{part}</span>
+  );
+
+  return (
+    <div className="mb-2">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
+      >
+        <span>💭 View reasoning</span>
+        <span className={`transition-transform ${open ? "rotate-90" : ""}`}>›</span>
+      </button>
+      {open && (
+        <pre className="mt-1 font-mono text-xs text-slate-400 bg-slate-50 rounded p-3 whitespace-pre-wrap overflow-x-auto">
+          {formatted}
+        </pre>
+      )}
+    </div>
+  );
 }
 
 export default function MessageBubble({ message, onCitationClick, onFeedback, isLast }: MessageBubbleProps) {
