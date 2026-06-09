@@ -16,7 +16,7 @@ from llama_index.llms.anthropic import Anthropic
 
 SECTION_PATTERNS = [
     re.compile(r"^#{1,3}\s+(.+)$", re.MULTILINE),
-    re.compile(r"^(\d+\.\s+.+)$", re.MULTILINE),
+    re.compile(r"^(\d+(?:\.\d+)*\.?\s+.+)$", re.MULTILINE),
 ]
 
 CLAUSE_PATTERN = re.compile(
@@ -24,6 +24,17 @@ CLAUSE_PATTERN = re.compile(
 )
 
 CHUNK_SIZES = [2048, 512, 128]
+
+
+def _merge_parser_nodes(
+    md_nodes: list,
+    hier_nodes: list,
+) -> list:
+    """Combine parser outputs without duplicating prose.
+    Only table nodes from md_nodes are kept; prose is covered by hier_nodes.
+    """
+    table_nodes = [n for n in md_nodes if _detect_chunk_type(n.get_content()) == "table"]
+    return table_nodes + hier_nodes
 
 
 def _detect_chunk_type(text: str) -> str:
@@ -82,7 +93,7 @@ def chunk_pages(
     hier_parser = HierarchicalNodeParser.from_defaults(chunk_sizes=CHUNK_SIZES)
     hier_nodes = hier_parser.get_nodes_from_documents(documents)
 
-    all_nodes = md_nodes + hier_nodes
+    all_nodes = _merge_parser_nodes(md_nodes, hier_nodes)
 
     # Tag every node with rich metadata
     for node in all_nodes:
@@ -99,12 +110,7 @@ def chunk_pages(
         if "page_number" not in node.metadata:
             node.metadata["page_number"] = node.metadata.get("page_label", 0)
 
-    leaf_nodes = get_leaf_nodes(hier_nodes) + [
-        n for n in md_nodes
-        if not any(
-            r.node_id == n.node_id
-            for r in n.relationships.get(NodeRelationship.CHILD, [])  # type: ignore[arg-type]
-        )
-    ]
+    table_md_nodes = [n for n in md_nodes if _detect_chunk_type(n.get_content()) == "table"]
+    leaf_nodes = get_leaf_nodes(hier_nodes) + table_md_nodes
 
     return leaf_nodes, all_nodes
