@@ -80,7 +80,10 @@ def auto_merge(
     If >=50% of a parent's children are in leaf_nodes, replace them with the parent.
     Falls back to leaf_nodes if parent store not available.
     """
-    nodes_path = Path(data_dir) / "bm25_indexes" / f"{policy_id}_all_nodes.json"
+    from app.retrieval.sparse import assert_safe_bm25_path
+    bm25_dir = Path(data_dir) / "bm25_indexes"
+    nodes_path = bm25_dir / f"{policy_id}_all_nodes.json"
+    assert_safe_bm25_path(nodes_path, bm25_dir)
     if not nodes_path.exists():
         return leaf_nodes
 

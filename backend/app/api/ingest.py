@@ -20,6 +20,12 @@ router = APIRouter()
 _jobs: dict[str, dict] = {}
 
 
+def assert_safe_pdf_path(pdf_path: Path, pdf_dir: Path) -> None:
+    """Raise ValueError if pdf_path resolves outside pdf_dir (defense-in-depth)."""
+    if not pdf_path.resolve().is_relative_to(pdf_dir.resolve()):
+        raise ValueError(f"Resolved path is outside {pdf_dir}: {pdf_path}")
+
+
 def _run_ingestion(job_id: str, pdf_path: str, policy_id: str):
     settings = get_settings()
     try:
@@ -72,15 +78,16 @@ async def ingest_policy(
     policy_id = validate_policy_id(policy_id) if policy_id else str(uuid.uuid4())
     pdf_dir = Path(settings.data_dir) / "pdfs"
     pdf_dir.mkdir(parents=True, exist_ok=True)
-    pdf_path = str(pdf_dir / f"{policy_id}.pdf")
+    pdf_path = pdf_dir / f"{policy_id}.pdf"
+    assert_safe_pdf_path(pdf_path, pdf_dir)
 
     content = await file.read()
-    Path(pdf_path).write_bytes(content)
+    pdf_path.write_bytes(content)
 
     job_id = str(uuid.uuid4())
     _jobs[job_id] = {"status": "queued", "progress": 0}
 
-    background_tasks.add_task(_run_ingestion, job_id, pdf_path, policy_id)
+    background_tasks.add_task(_run_ingestion, job_id, str(pdf_path), policy_id)
 
     return {"job_id": job_id, "policy_id": policy_id}
 

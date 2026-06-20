@@ -5,8 +5,16 @@ from rank_bm25 import BM25Okapi
 from llama_index.core.schema import NodeWithScore, TextNode
 
 
+def assert_safe_bm25_path(bm25_path: Path, bm25_dir: Path) -> None:
+    """Raise ValueError if bm25_path resolves outside bm25_dir (defense-in-depth)."""
+    if not bm25_path.resolve().is_relative_to(bm25_dir.resolve()):
+        raise ValueError(f"Resolved path is outside {bm25_dir}: {bm25_path}")
+
+
 def load_bm25(policy_id: str, data_dir: str) -> tuple[BM25Okapi, list[dict]]:
-    bm25_path = Path(data_dir) / "bm25_indexes" / f"{policy_id}.json"
+    bm25_dir = Path(data_dir) / "bm25_indexes"
+    bm25_path = bm25_dir / f"{policy_id}.json"
+    assert_safe_bm25_path(bm25_path, bm25_dir)
     data = json.loads(bm25_path.read_text(encoding="utf-8"))
     corpus = data["corpus"]
     node_meta = data["nodes"]
