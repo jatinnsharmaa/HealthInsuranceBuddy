@@ -156,7 +156,7 @@ uv run python eval/run_baseline_eval.py \
   --output eval/results/
 ```
 
-Results saved to `eval/results/eval_summary_baseline_<timestamp>.json`. Scores `answer_relevancy` and `answer_correctness` only (no retrieval step, so context metrics don't apply).
+Results saved to `eval/results/eval_summary_baseline_<timestamp>.json`. Scores `answer_relevancy` only (no retrieval step, so context metrics don't apply).
 
 ---
 

@@ -49,13 +49,13 @@ Web Navigator Agent (Claude Haiku) — called only when needed
 
 **Eval results (70 questions, Care Insurance Supreme):**
 
-| Mode | Faithfulness | Context Precision | Context Recall | Answer Relevancy | Answer Correctness |
-|------|-------------|------------------|----------------|-----------------|-------------------|
-| dense | 0.622 | 0.768 | 0.610 | 0.472 | 0.531 |
-| hybrid_rerank | 0.607 | 0.735 | 0.528 | 0.498 | 0.531 |
-| dense_rerank | 0.631 | 0.676 | 0.544 | 0.445 | 0.528 |
-| hybrid | 0.585 | 0.647 | 0.552 | 0.471 | 0.507 |
-| llm_baseline¹ | — | — | — | 0.452 | 0.508 |
+| Mode | Faithfulness | Context Precision | Context Recall | Answer Relevancy |
+|------|-------------|------------------|----------------|-----------------|
+| dense | 0.622 | 0.768 | 0.610 | 0.472 |
+| hybrid_rerank | 0.607 | 0.735 | 0.528 | 0.498 |
+| dense_rerank | 0.631 | 0.676 | 0.544 | 0.445 |
+| hybrid | 0.585 | 0.647 | 0.552 | 0.471 |
+| llm_baseline¹ | — | — | — | 0.452 |
 
 ¹ LLM baseline: Claude Sonnet with the full policy PDF attached, native web search — no RAG chunking or retrieval. Context metrics not applicable (no retrieval step).
 
