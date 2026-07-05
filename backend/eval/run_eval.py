@@ -19,6 +19,7 @@ import argparse
 import asyncio
 import csv
 import json
+import re
 import sys
 import time
 from datetime import datetime
@@ -102,6 +103,21 @@ def save_log(log_file: Path, entry: dict):
         f.write(json.dumps(entry) + "\n")
 
 
+VERDICT_RE = re.compile(r"\*\*Verdict\**:")
+CUT_MARKERS = ["\n**Sources:", "\n**Disclaimer:", "\n> ⚠️", "\n⚠️"]
+
+
+def extract_answer_body(answer: str) -> str:
+    """Strip pre-verdict preamble and post-answer boilerplate for RAGAS scoring."""
+    m = VERDICT_RE.search(answer)
+    if m and m.start() > 0:
+        answer = answer[m.start():]
+    cut = min((i for i in (answer.find(mk) for mk in CUT_MARKERS) if i > 0), default=-1)
+    if cut > 0:
+        answer = answer[:cut]
+    return answer.strip()
+
+
 async def run_single_with_retry(
     settings,
     pinecone_index,
@@ -109,10 +125,10 @@ async def run_single_with_retry(
     mode: str,
     question: str,
     max_retries: int = MAX_RETRIES,
-) -> tuple[str, str, list[dict], str, int, int, float]:
+) -> tuple[str, list[str], list[dict], str, int, int, float]:
     """
     Run one question through the agent with exponential backoff retry.
-    Returns: (response, context, retrieval_log, web_fetch_status, input_tokens, output_tokens, latency_s)
+    Returns: (response, contexts_list, retrieval_log, web_fetch_status, input_tokens, output_tokens, latency_s)
     """
     last_error = ""
     for attempt in range(max_retries):
@@ -147,17 +163,21 @@ async def run_single_with_retry(
                 elif event.get("type") == "error":
                     raise RuntimeError(event.get("content", "Unknown error"))
 
-            # Extract full context from retrieval_log
-            context_parts = []
+            # Prefer result_chunks (list stored directly by orchestrator) to avoid
+            # any fragility from splitting result_full on \n---\n
+            contexts_list: list[str] = []
             for entry in retrieval_log:
                 if entry.get("tool") == "retrieve_from_policy":
-                    full = entry.get("result_full", entry.get("result_preview", ""))
-                    if full:
-                        context_parts.append(full)
-            context = " | ".join(context_parts)
+                    if entry.get("result_chunks"):
+                        contexts_list.extend(entry["result_chunks"])
+                    else:
+                        full = entry.get("result_full", entry.get("result_preview", ""))
+                        if full:
+                            chunks = [c.strip() for c in full.split("\n---\n") if c.strip()]
+                            contexts_list.extend(chunks)
 
             latency = round(time.perf_counter() - t0, 2)
-            return response, context, retrieval_log, web_fetch_status, input_tokens, output_tokens, latency
+            return response, contexts_list, retrieval_log, web_fetch_status, input_tokens, output_tokens, latency
 
         except Exception as e:
             last_error = str(e)
@@ -167,7 +187,7 @@ async def run_single_with_retry(
                 await asyncio.sleep(delay)
 
     latency = round(time.perf_counter() - t0, 2)
-    return f"ERROR: {last_error}", "", [], "not_triggered", 0, 0, latency
+    return f"ERROR: {last_error}", [], [], "not_triggered", 0, 0, latency
 
 
 async def evaluate_mode(
@@ -202,12 +222,19 @@ async def evaluate_mode(
             questions.append(question)
             answers.append(entry["response"])
             ground_truths.append(ground_truth)
-            contexts.append([entry["context"]] if entry.get("context") else [""])
+            # Support both new (list) and old (blob string) checkpoint formats
+            if entry.get("contexts"):
+                ctx = entry["contexts"]
+            elif entry.get("context"):
+                ctx = [c.strip() for c in entry["context"].split("\n---\n") if c.strip()] or [entry["context"]]
+            else:
+                ctx = [""]
+            contexts.append(ctx)
             continue
 
         print(f"  [{i+1}/{len(golden)}] {question[:60]}...")
 
-        response, context, retrieval_log, web_fetch_status, in_tok, out_tok, latency = \
+        response, contexts_list, retrieval_log, web_fetch_status, in_tok, out_tok, latency = \
             await run_single_with_retry(settings, pinecone_index, policy_id, mode, question)
 
         is_error = response.startswith("ERROR:")
@@ -219,7 +246,7 @@ async def evaluate_mode(
         total_output_tokens += out_tok
 
         # Validate context before saving
-        context_valid = len(context) > 50
+        context_valid = any(len(c) > 50 for c in contexts_list)
         if not context_valid and not is_error:
             print(f"    WARNING: Empty/short context for Q{i+1} — will be excluded from Ragas scoring")
 
@@ -227,7 +254,8 @@ async def evaluate_mode(
             "id": row["id"],
             "question": question,
             "response": response,
-            "context": context,
+            "context": "\n---\n".join(contexts_list),  # human-readable joined form
+            "contexts": contexts_list,                  # per-chunk list for RAGAS
             "context_valid": context_valid,
             "ground_truth": ground_truth,
             "category": row["category"],
@@ -246,7 +274,7 @@ async def evaluate_mode(
         questions.append(question)
         answers.append(response)
         ground_truths.append(ground_truth)
-        contexts.append([context] if context_valid else [""])
+        contexts.append(contexts_list if context_valid else [""])
 
     # Filter to valid scoreable rows
     valid = [
@@ -262,9 +290,12 @@ async def evaluate_mode(
         return {"mode": mode, "error": "No valid responses", "scores": {}, "total": len(questions), "scored": 0}
 
     qs, ans, gts, ctxs = zip(*valid)
+    # Strip preamble (pre-Verdict reasoning) and boilerplate (Sources/Disclaimer)
+    # so RAGAS scores only the answer body — avoids faithfulness and relevancy penalties
+    scored_ans = [extract_answer_body(a) for a in ans]
     dataset = Dataset.from_dict({
         "question": list(qs),
-        "answer": list(ans),
+        "answer": scored_ans,
         "ground_truth": list(gts),
         "contexts": list(ctxs),
     })

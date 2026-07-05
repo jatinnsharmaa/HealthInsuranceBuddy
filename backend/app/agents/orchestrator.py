@@ -111,7 +111,8 @@ class OrchestratorAgent:
 
                 result_text = "\n---\n".join(parts)
                 log[entry_idx]["nodes_returned"] = len(nodes)
-                log[entry_idx]["result_full"] = result_text  # full context for eval scoring
+                log[entry_idx]["result_chunks"] = parts   # list form — durable for eval scoring
+                log[entry_idx]["result_full"] = result_text  # joined form — sent to LLM
                 return result_text
 
             except Exception as e:

@@ -68,7 +68,18 @@ def retrieve(
     else:
         raise ValueError(f"Unknown retrieval mode: {mode}")
 
-    return auto_merge(nodes, policy_id, data_dir)
+    return _deduplicate(auto_merge(nodes, policy_id, data_dir))
+
+
+def _deduplicate(nodes: list[NodeWithScore]) -> list[NodeWithScore]:
+    seen: set[str] = set()
+    result = []
+    for nws in nodes:
+        text = nws.node.text.strip()
+        if text not in seen:
+            seen.add(text)
+            result.append(nws)
+    return result
 
 
 def auto_merge(

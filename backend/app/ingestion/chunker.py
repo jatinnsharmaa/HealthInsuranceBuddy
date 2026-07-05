@@ -20,7 +20,21 @@ SECTION_PATTERNS = [
 ]
 
 CLAUSE_PATTERN = re.compile(
-    r"(?:Clause|Section|Annexure|Schedule)\s+([\d.IVXivx]+)", re.IGNORECASE
+    r"(?:Clause|Section|Annexure|Schedule)\s+([\d.IVXivx]+)\b", re.IGNORECASE
+)
+
+# Matches bare multi-level clause numbers: 2.1.1, 3.2.18, 4.1(a)(ii)
+# Requires at least two dot-separated components to avoid matching list items
+BARE_CLAUSE_RE = re.compile(
+    r"(?:^|\*\*)(\d+(?:\.\d+)+(?:\([a-zA-Z0-9ivxIVX]+\))*)",
+    re.MULTILINE,
+)
+
+# Splits on multi-level clause headings (2.1., 2.1.1., 2.1.4.) and markdown headers.
+# Requires a digit after the first dot so single-level items (1. Asthma;, 9.  Note)
+# are not treated as clause boundaries.
+CLAUSE_BOUNDARY_RE = re.compile(
+    r"(?m)^(?=\d+\.\d[\d.]*[\s.(]|#{1,3}\s)",
 )
 
 CHUNK_SIZES = [2048, 512, 128]
@@ -55,8 +69,29 @@ def _extract_section(text: str) -> str:
 
 
 def _extract_sub_clause(text: str) -> str:
-    m = CLAUSE_PATTERN.search(text)
+    m = BARE_CLAUSE_RE.match(text)        # heading at chunk start wins
+    if m:
+        return m.group(1)
+    m = CLAUSE_PATTERN.search(text)       # explicit prefix (cross-refs, table labels)
+    if m:
+        return m.group(1)
+    m = BARE_CLAUSE_RE.search(text)       # bare number anywhere in text as last resort
     return m.group(1) if m else ""
+
+
+def _split_into_clause_documents(doc: Document, min_chars: int = 80) -> list[Document]:
+    """Pre-split a page document on multi-level clause headings and markdown headers."""
+    text = doc.text
+    positions = [m.start() for m in CLAUSE_BOUNDARY_RE.finditer(text)]
+    if not positions:
+        return [doc]
+    boundaries = [0] + positions + [len(text)]
+    result = []
+    for i in range(len(boundaries) - 1):
+        chunk = text[boundaries[i]:boundaries[i + 1]].strip()
+        if len(chunk) >= min_chars:
+            result.append(Document(text=chunk, metadata=doc.metadata.copy()))
+    return result or [doc]
 
 
 def chunk_pages(
@@ -89,9 +124,15 @@ def chunk_pages(
     md_parser = MarkdownElementNodeParser(num_workers=1, llm=llm)
     md_nodes = md_parser.get_nodes_from_documents(documents)
 
-    # Step 2: hierarchical parse for prose
+    # Pre-split each page on clause boundaries so HierarchicalNodeParser only
+    # sub-splits oversized individual clauses, not across clause boundaries
+    clause_docs: list[Document] = []
+    for doc in documents:
+        clause_docs.extend(_split_into_clause_documents(doc))
+
+    # Step 2: hierarchical parse on clause-pre-split documents
     hier_parser = HierarchicalNodeParser.from_defaults(chunk_sizes=CHUNK_SIZES)
-    hier_nodes = hier_parser.get_nodes_from_documents(documents)
+    hier_nodes = hier_parser.get_nodes_from_documents(clause_docs)
 
     all_nodes = _merge_parser_nodes(md_nodes, hier_nodes)
 
